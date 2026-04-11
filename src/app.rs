@@ -118,24 +118,31 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
   L.push("─────────────────────────────────────────────────────────────".into());
   L.push(String::new());
 
-  // CPU — riga riepilogo + E/P core con barre allineate
-  L.push(format!("  CPU  utilizzo combinato  {:5.1}%  {}",
-    cpu_pct, log_bar(cpu_pct, 100.0, B)));
-  L.push(format!("    {}-Core  {:5.1}%  {}   {:10} / {:10}",
-    soc.ecpu_label, ecpu_pct,
+  // UTILIZZO — etichetta fissa 16 caratteri, poi %6.1f%, poi barra 20, poi frequenze
+  // "  CPU combinato   " = 18 char
+  // "  CPU E-Core      " = 18 char
+  // "  CPU P-Core      " = 18 char
+  // "  GPU             " = 18 char
+  let ecpu_lbl = format!("CPU {}-Core", soc.ecpu_label);
+  let pcpu_lbl = format!("CPU {}-Core", soc.pcpu_label);
+
+  L.push("  UTILIZZO".into());
+  L.push(format!("  {:<16} {:5.1}%  {}",
+    "CPU combinato", cpu_pct, log_bar(cpu_pct, 100.0, B)));
+  L.push(String::new());
+  L.push(format!("  {:<16} {:5.1}%  {}   {:10} / {:10}",
+    ecpu_lbl, ecpu_pct,
     log_bar(metrics.ecpu_usage.0 as f64, max_ecpu, B),
     log_fmt_freq(metrics.ecpu_usage.0),
     log_fmt_freq(*soc.ecpu_freqs.last().unwrap_or(&0))));
-  L.push(format!("    {}-Core  {:5.1}%  {}   {:10} / {:10}",
-    soc.pcpu_label, pcpu_pct,
+  L.push(format!("  {:<16} {:5.1}%  {}   {:10} / {:10}",
+    pcpu_lbl, pcpu_pct,
     log_bar(metrics.pcpu_usage.0 as f64, max_pcpu, B),
     log_fmt_freq(metrics.pcpu_usage.0),
     log_fmt_freq(*soc.pcpu_freqs.last().unwrap_or(&0))));
   L.push(String::new());
-
-  // GPU
-  L.push(format!("  GPU          {:5.1}%  {}   {:10} / {:10}",
-    gpu_pct,
+  L.push(format!("  {:<16} {:5.1}%  {}   {:10} / {:10}",
+    "GPU", gpu_pct,
     log_bar(metrics.gpu_usage.0 as f64, max_gpu, B),
     log_fmt_freq(metrics.gpu_usage.0),
     log_fmt_freq(*soc.gpu_freqs.last().unwrap_or(&0))));
