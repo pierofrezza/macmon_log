@@ -61,7 +61,7 @@ fn log_session_header(soc: &SocInfo, path: &PathBuf) -> String {
   L.push(String::new());
   L.push(format!("  Data/ora inizio  : {}", ts));
   L.push(format!("  File di log      : {}", path.display()));
-  L.push(format!("  Intervallo       : {}ms (UI)", "variabile"));
+  L.push(format!("  Intervallo       : segue UI (ms variabili)"));
   L.push(String::new());
   L.push("  ── INFORMAZIONI MACCHINA ─────────────────────────────────────".into());
   L.push(format!("  Chip             : {}", soc.chip_name));
@@ -96,7 +96,7 @@ fn log_session_header(soc: &SocInfo, path: &PathBuf) -> String {
 fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
   let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
   let mem = &metrics.memory;
-  let ram_pct = if mem.ram_total > 0 { mem.ram_usage as f64 / mem.ram_total as f64 * 100.0 } else { 0.0 };
+  let ram_pct  = if mem.ram_total  > 0 { mem.ram_usage  as f64 / mem.ram_total  as f64 * 100.0 } else { 0.0 };
   let swap_pct = if mem.swap_total > 0 { mem.swap_usage as f64 / mem.swap_total as f64 * 100.0 } else { 0.0 };
   let ecpu_pct = metrics.ecpu_usage.1 as f64 * 100.0;
   let pcpu_pct = metrics.pcpu_usage.1 as f64 * 100.0;
@@ -106,29 +106,42 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
   let max_pcpu = *soc.pcpu_freqs.last().unwrap_or(&1) as f64;
   let max_gpu  = *soc.gpu_freqs.last().unwrap_or(&1)  as f64;
 
+  // Tutte le barre hanno la stessa larghezza (20) e i valori sono padding fisso
+  // Layout colonne: "    X-Core  PPP.P%  [████████████████████]   F.FF GHz / F.FF GHz"
+  let B = 20; // larghezza barra unica per tutto il log
+
   let mut L: Vec<String> = Vec::new();
+  L.push(String::new());
+  L.push(String::new());
   L.push("─────────────────────────────────────────────────────────────".into());
   L.push(format!("  Campione #{:<6}  {}", index, ts));
   L.push("─────────────────────────────────────────────────────────────".into());
   L.push(String::new());
-  L.push(format!("  CPU  utilizzo combinato  {:5.1}%  {}", cpu_pct, log_bar(cpu_pct, 100.0, 20)));
-  L.push(format!("    {}-Core  {:5.1}%  {}   {} / {}",
+
+  // CPU — riga riepilogo + E/P core con barre allineate
+  L.push(format!("  CPU  utilizzo combinato  {:5.1}%  {}",
+    cpu_pct, log_bar(cpu_pct, 100.0, B)));
+  L.push(format!("    {}-Core  {:5.1}%  {}   {:10} / {:10}",
     soc.ecpu_label, ecpu_pct,
-    log_bar(metrics.ecpu_usage.0 as f64, max_ecpu, 16),
+    log_bar(metrics.ecpu_usage.0 as f64, max_ecpu, B),
     log_fmt_freq(metrics.ecpu_usage.0),
     log_fmt_freq(*soc.ecpu_freqs.last().unwrap_or(&0))));
-  L.push(format!("    {}-Core  {:5.1}%  {}   {} / {}",
+  L.push(format!("    {}-Core  {:5.1}%  {}   {:10} / {:10}",
     soc.pcpu_label, pcpu_pct,
-    log_bar(metrics.pcpu_usage.0 as f64, max_pcpu, 16),
+    log_bar(metrics.pcpu_usage.0 as f64, max_pcpu, B),
     log_fmt_freq(metrics.pcpu_usage.0),
     log_fmt_freq(*soc.pcpu_freqs.last().unwrap_or(&0))));
   L.push(String::new());
-  L.push(format!("  GPU  {:5.1}%  {}   {} / {}",
+
+  // GPU
+  L.push(format!("  GPU          {:5.1}%  {}   {:10} / {:10}",
     gpu_pct,
-    log_bar(metrics.gpu_usage.0 as f64, max_gpu, 20),
+    log_bar(metrics.gpu_usage.0 as f64, max_gpu, B),
     log_fmt_freq(metrics.gpu_usage.0),
     log_fmt_freq(*soc.gpu_freqs.last().unwrap_or(&0))));
   L.push(String::new());
+
+  // Consumi
   L.push("  CONSUMI".into());
   L.push(format!("    CPU              : {}", log_fmt_watts(metrics.cpu_power)));
   L.push(format!("    GPU              : {}", log_fmt_watts(metrics.gpu_power)));
@@ -138,18 +151,23 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
     L.push(format!("    Sistema (PSTR)   : {}", log_fmt_watts(metrics.sys_power)));
   }
   L.push(String::new());
+
+  // Temperature
   L.push("  TEMPERATURE".into());
   L.push(format!("    CPU avg          : {}", log_fmt_temp(metrics.temp.cpu_temp_avg)));
   L.push(format!("    GPU avg          : {}", log_fmt_temp(metrics.temp.gpu_temp_avg)));
   L.push(String::new());
+
+  // Memoria
   L.push("  MEMORIA".into());
-  L.push(format!("    RAM   {}  /  {}  ({:5.1}%)  {}",
-    log_fmt_gb(mem.ram_usage), log_fmt_gb(mem.ram_total), ram_pct, log_bar(ram_pct, 100.0, 16)));
+  L.push(format!("    RAM   {:7}  /  {:7}  ({:5.1}%)  {}",
+    log_fmt_gb(mem.ram_usage), log_fmt_gb(mem.ram_total), ram_pct, log_bar(ram_pct, 100.0, B)));
   if mem.swap_total > 0 {
-    L.push(format!("    SWAP  {}  /  {}  ({:5.1}%)  {}",
-      log_fmt_gb(mem.swap_usage), log_fmt_gb(mem.swap_total), swap_pct, log_bar(swap_pct, 100.0, 16)));
+    L.push(format!("    SWAP  {:7}  /  {:7}  ({:5.1}%)  {}",
+      log_fmt_gb(mem.swap_usage), log_fmt_gb(mem.swap_total), swap_pct, log_bar(swap_pct, 100.0, B)));
   }
   L.push(String::new());
+
   L.join("\n")
 }
 
