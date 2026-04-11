@@ -81,7 +81,7 @@ fn log_session_header(soc: &SocInfo, path: &PathBuf) -> String {
   L.push(format!("  {}-Core  : {} MHz",
     soc.pcpu_label,
     soc.pcpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
-  L.push(format!("  GPU      : {} MHz",
+  L.push(format!("  GPU     : {} MHz",
     soc.gpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(String::new());
   L.push("═══════════════════════════════════════════════════════════════".into());
