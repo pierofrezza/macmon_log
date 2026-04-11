@@ -417,7 +417,7 @@ impl App {
     self.cpu_temp.push(data.temp.cpu_temp_avg);
     self.gpu_temp.push(data.temp.gpu_temp_avg);
 
-    self.mem.push(data.memory.clone());
+    self.mem.push(data.memory);
 
     // Scrivi campione sul file di log
     self.log_counter += 1;
