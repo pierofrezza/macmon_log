@@ -27,8 +27,7 @@ fn log_bar(value: f64, max: f64, width: usize) -> String {
 }
 
 fn log_fmt_freq(mhz: u32) -> String {
-  if mhz == 0 { return "     N/A  ".to_string() }
-  if mhz >= 1000 { format!("{:6.2} GHz", mhz as f64 / 1000.0) } else { format!("{:4} MHz   ", mhz) }
+  if mhz == 0 { "  N/A MHz".to_string() } else { format!("{:5} MHz", mhz) }
 }
 
 fn log_fmt_watts(w: f32) -> String {
@@ -76,17 +75,14 @@ fn log_session_header(soc: &SocInfo, path: &PathBuf) -> String {
   L.push(format!("  Core GPU         : {}", soc.gpu_cores));
   L.push(String::new());
   L.push("  ── RANGE FREQUENZE DISPONIBILI ───────────────────────────────".into());
-  L.push(format!("  {}-Core           : {} – {} MHz",
+  L.push(format!("  {}-Core  : {} MHz",
     soc.ecpu_label,
-    soc.ecpu_freqs.first().copied().unwrap_or(0),
-    soc.ecpu_freqs.last().copied().unwrap_or(0)));
-  L.push(format!("  {}-Core           : {} – {} MHz",
+    soc.ecpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
+  L.push(format!("  {}-Core  : {} MHz",
     soc.pcpu_label,
-    soc.pcpu_freqs.first().copied().unwrap_or(0),
-    soc.pcpu_freqs.last().copied().unwrap_or(0)));
-  L.push(format!("  GPU              : {} – {} MHz",
-    soc.gpu_freqs.first().copied().unwrap_or(0),
-    soc.gpu_freqs.last().copied().unwrap_or(0)));
+    soc.pcpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
+  L.push(format!("  GPU      : {} MHz",
+    soc.gpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(String::new());
   L.push("═══════════════════════════════════════════════════════════════".into());
   L.push(String::new());
@@ -130,18 +126,18 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
   L.push(format!("    {:<16} {:5.1}%  {}",
     "CPU combinato", cpu_pct, log_bar(cpu_pct, 100.0, B)));
   L.push(String::new());
-  L.push(format!("    {:<16} {:5.1}%  {}   {:10} / {:10}",
+  L.push(format!("    {:<16} {:5.1}%  {}   {} / {}",
     ecpu_lbl, ecpu_pct,
     log_bar(metrics.ecpu_usage.0 as f64, max_ecpu, B),
     log_fmt_freq(metrics.ecpu_usage.0),
     log_fmt_freq(*soc.ecpu_freqs.last().unwrap_or(&0))));
-  L.push(format!("    {:<16} {:5.1}%  {}   {:10} / {:10}",
+  L.push(format!("    {:<16} {:5.1}%  {}   {} / {}",
     pcpu_lbl, pcpu_pct,
     log_bar(metrics.pcpu_usage.0 as f64, max_pcpu, B),
     log_fmt_freq(metrics.pcpu_usage.0),
     log_fmt_freq(*soc.pcpu_freqs.last().unwrap_or(&0))));
   L.push(String::new());
-  L.push(format!("    {:<16} {:5.1}%  {}   {:10} / {:10}",
+  L.push(format!("    {:<16} {:5.1}%  {}   {} / {}",
     "GPU", gpu_pct,
     log_bar(metrics.gpu_usage.0 as f64, max_gpu, B),
     log_fmt_freq(metrics.gpu_usage.0),
