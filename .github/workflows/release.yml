@@ -1,0 +1,58 @@
+name: release
+
+on:
+  push:
+    tags: 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+
+      - name: Installa Rust stable
+        run: rustup update --no-self-update stable && rustup default stable
+
+      - name: Compila
+        run: cargo build --release --locked
+
+      - name: Crea archivio
+        run: |
+          cp target/release/macmon macmon
+          tar czf macmon-${{ github.ref_name }}.tar.gz macmon
+          echo "Archivio creato:"
+          ls -lah macmon-${{ github.ref_name }}.tar.gz
+
+      - name: Pubblica Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "macmon ${{ github.ref_name }}"
+          body: |
+            ## macmon ${{ github.ref_name }}
+
+            Eseguibile per Apple Silicon (arm64).
+
+            ### Utilizzo
+            ```
+            tar xzf macmon-${{ github.ref_name }}.tar.gz
+            ./macmon          # UI interattiva
+            ./macmon log      # modalità log (scrive file .txt accanto all'eseguibile)
+            ```
+          files: macmon-${{ github.ref_name }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,41 @@
+name: check
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']
+    paths:
+      - .github/workflows/*.yml
+      - Cargo.toml
+      - src/**
+
+jobs:
+  check:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+
+      - name: Installa Rust stable
+        run: rustup update --no-self-update stable && rustup default stable
+
+      - name: Compila
+        run: cargo build --release --locked
+
+      - name: Salva eseguibile come artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macmon-dev-build
+          path: target/release/macmon
+          retention-days: 7
