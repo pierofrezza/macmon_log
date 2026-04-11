@@ -405,6 +405,16 @@ impl App {
   }
 
   fn update_metrics(&mut self, data: Metrics) {
+    // Scrivi campione sul file di log (prima delle push che consumano data)
+    self.log_counter += 1;
+    if let Some(ref path) = self.log_path {
+      let entry = log_build_entry(&data, &self.soc, self.log_counter);
+      if let Ok(mut file) = OpenOptions::new().append(true).open(path) {
+        let _ = file.write_all(entry.as_bytes());
+        let _ = file.flush();
+      }
+    }
+
     self.cpu_power.push(data.cpu_power as f64);
     self.gpu_power.push(data.gpu_power as f64);
     self.ane_power.push(data.ane_power as f64);
@@ -418,16 +428,6 @@ impl App {
     self.gpu_temp.push(data.temp.gpu_temp_avg);
 
     self.mem.push(data.memory);
-
-    // Scrivi campione sul file di log
-    self.log_counter += 1;
-    if let Some(ref path) = self.log_path {
-      let entry = log_build_entry(&data, &self.soc, self.log_counter);
-      if let Ok(mut file) = OpenOptions::new().append(true).open(path) {
-        let _ = file.write_all(entry.as_bytes());
-        let _ = file.flush();
-      }
-    }
   }
 
   fn title_block<'a>(&self, label_l: &str, label_r: &str) -> Block<'a> {
