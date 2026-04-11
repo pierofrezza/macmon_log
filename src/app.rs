@@ -1,3 +1,6 @@
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::{io::stdout, time::Instant};
 use std::{sync::mpsc, time::Duration};
@@ -12,6 +15,143 @@ use ratatui::{prelude::*, widgets::*};
 use crate::config::{Config, ViewType};
 use crate::metrics::{Metrics, Sampler, zero_div};
 use crate::{metrics::MemMetrics, sources::SocInfo};
+
+// MARK: Log writer
+
+const LOG_GB: u64 = 1024 * 1024 * 1024;
+
+fn log_bar(value: f64, max: f64, width: usize) -> String {
+  let pct = if max > 0.0 { (value / max).clamp(0.0, 1.0) } else { 0.0 };
+  let filled = (pct * width as f64).round() as usize;
+  format!("[{}{}]", "█".repeat(filled), "░".repeat(width - filled))
+}
+
+fn log_fmt_freq(mhz: u32) -> String {
+  if mhz == 0 { return "    N/A  ".to_string() }
+  if mhz >= 1000 { format!("{:6.2} GHz", mhz as f64 / 1000.0) } else { format!("{:4} MHz  ", mhz) }
+}
+
+fn log_fmt_watts(w: f32) -> String {
+  if w == 0.0 { "   N/A".to_string() } else { format!("{:6.2} W", w) }
+}
+
+fn log_fmt_temp(t: f32) -> String {
+  if t == 0.0 { "  N/A".to_string() } else { format!("{:5.1}°C", t) }
+}
+
+fn log_fmt_gb(bytes: u64) -> String {
+  format!("{:.2} GB", bytes as f64 / LOG_GB as f64)
+}
+
+fn log_file_path(soc: &SocInfo) -> PathBuf {
+  let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("."));
+  let dir = exe.parent().unwrap_or_else(|| std::path::Path::new("."));
+  let now = chrono::Local::now();
+  let ts = now.format("%Y-%m-%d_%H-%M-%S").to_string();
+  let chip = soc.chip_name.replace(' ', "_");
+  dir.join(format!("{}-{}-{}.txt", chip, soc.mac_model, ts))
+}
+
+fn log_session_header(soc: &SocInfo, path: &PathBuf) -> String {
+  let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+  let mut L: Vec<String> = Vec::new();
+  L.push("╔══════════════════════════════════════════════════════════════╗".into());
+  L.push("║              INIZIO SESSIONE — macmon log                    ║".into());
+  L.push("╚══════════════════════════════════════════════════════════════╝".into());
+  L.push(String::new());
+  L.push(format!("  Data/ora inizio  : {}", ts));
+  L.push(format!("  File di log      : {}", path.display()));
+  L.push(format!("  Intervallo       : {}ms (UI)", "variabile"));
+  L.push(String::new());
+  L.push("  ── INFORMAZIONI MACCHINA ─────────────────────────────────────".into());
+  L.push(format!("  Chip             : {}", soc.chip_name));
+  L.push(format!("  Model ID         : {}", soc.mac_model));
+  L.push(format!("  Memoria          : {} GB", soc.memory_gb));
+  L.push(format!(
+    "  Core CPU         : {} {}-core + {} {}-core  (tot. {})",
+    soc.ecpu_cores, soc.ecpu_label,
+    soc.pcpu_cores, soc.pcpu_label,
+    soc.ecpu_cores as u16 + soc.pcpu_cores as u16,
+  ));
+  L.push(format!("  Core GPU         : {}", soc.gpu_cores));
+  L.push(String::new());
+  L.push("  ── RANGE FREQUENZE DISPONIBILI ───────────────────────────────".into());
+  L.push(format!("  {}-Core           : {} – {} MHz",
+    soc.ecpu_label,
+    soc.ecpu_freqs.first().copied().unwrap_or(0),
+    soc.ecpu_freqs.last().copied().unwrap_or(0)));
+  L.push(format!("  {}-Core           : {} – {} MHz",
+    soc.pcpu_label,
+    soc.pcpu_freqs.first().copied().unwrap_or(0),
+    soc.pcpu_freqs.last().copied().unwrap_or(0)));
+  L.push(format!("  GPU              : {} – {} MHz",
+    soc.gpu_freqs.first().copied().unwrap_or(0),
+    soc.gpu_freqs.last().copied().unwrap_or(0)));
+  L.push(String::new());
+  L.push("═══════════════════════════════════════════════════════════════".into());
+  L.push(String::new());
+  L.join("\n")
+}
+
+fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
+  let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+  let mem = &metrics.memory;
+  let ram_pct = if mem.ram_total > 0 { mem.ram_usage as f64 / mem.ram_total as f64 * 100.0 } else { 0.0 };
+  let swap_pct = if mem.swap_total > 0 { mem.swap_usage as f64 / mem.swap_total as f64 * 100.0 } else { 0.0 };
+  let ecpu_pct = metrics.ecpu_usage.1 as f64 * 100.0;
+  let pcpu_pct = metrics.pcpu_usage.1 as f64 * 100.0;
+  let gpu_pct  = metrics.gpu_usage.1  as f64 * 100.0;
+  let cpu_pct  = metrics.cpu_usage_pct as f64 * 100.0;
+  let max_ecpu = *soc.ecpu_freqs.last().unwrap_or(&1) as f64;
+  let max_pcpu = *soc.pcpu_freqs.last().unwrap_or(&1) as f64;
+  let max_gpu  = *soc.gpu_freqs.last().unwrap_or(&1)  as f64;
+
+  let mut L: Vec<String> = Vec::new();
+  L.push("─────────────────────────────────────────────────────────────".into());
+  L.push(format!("  Campione #{:<6}  {}", index, ts));
+  L.push("─────────────────────────────────────────────────────────────".into());
+  L.push(String::new());
+  L.push(format!("  CPU  utilizzo combinato  {:5.1}%  {}", cpu_pct, log_bar(cpu_pct, 100.0, 20)));
+  L.push(format!("    {}-Core  {:5.1}%  {}   {} / {}",
+    soc.ecpu_label, ecpu_pct,
+    log_bar(metrics.ecpu_usage.0 as f64, max_ecpu, 16),
+    log_fmt_freq(metrics.ecpu_usage.0),
+    log_fmt_freq(*soc.ecpu_freqs.last().unwrap_or(&0))));
+  L.push(format!("    {}-Core  {:5.1}%  {}   {} / {}",
+    soc.pcpu_label, pcpu_pct,
+    log_bar(metrics.pcpu_usage.0 as f64, max_pcpu, 16),
+    log_fmt_freq(metrics.pcpu_usage.0),
+    log_fmt_freq(*soc.pcpu_freqs.last().unwrap_or(&0))));
+  L.push(String::new());
+  L.push(format!("  GPU  {:5.1}%  {}   {} / {}",
+    gpu_pct,
+    log_bar(metrics.gpu_usage.0 as f64, max_gpu, 20),
+    log_fmt_freq(metrics.gpu_usage.0),
+    log_fmt_freq(*soc.gpu_freqs.last().unwrap_or(&0))));
+  L.push(String::new());
+  L.push("  CONSUMI".into());
+  L.push(format!("    CPU              : {}", log_fmt_watts(metrics.cpu_power)));
+  L.push(format!("    GPU              : {}", log_fmt_watts(metrics.gpu_power)));
+  L.push(format!("    ANE              : {}", log_fmt_watts(metrics.ane_power)));
+  L.push(format!("    SoC totale       : {}", log_fmt_watts(metrics.all_power)));
+  if metrics.sys_power > 0.0 {
+    L.push(format!("    Sistema (PSTR)   : {}", log_fmt_watts(metrics.sys_power)));
+  }
+  L.push(String::new());
+  L.push("  TEMPERATURE".into());
+  L.push(format!("    CPU avg          : {}", log_fmt_temp(metrics.temp.cpu_temp_avg)));
+  L.push(format!("    GPU avg          : {}", log_fmt_temp(metrics.temp.gpu_temp_avg)));
+  L.push(String::new());
+  L.push("  MEMORIA".into());
+  L.push(format!("    RAM   {}  /  {}  ({:5.1}%)  {}",
+    log_fmt_gb(mem.ram_usage), log_fmt_gb(mem.ram_total), ram_pct, log_bar(ram_pct, 100.0, 16)));
+  if mem.swap_total > 0 {
+    L.push(format!("    SWAP  {}  /  {}  ({:5.1}%)  {}",
+      log_fmt_gb(mem.swap_usage), log_fmt_gb(mem.swap_total), swap_pct, log_bar(swap_pct, 100.0, 16)));
+  }
+  L.push(String::new());
+  L.join("\n")
+}
 
 type WithError<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -241,13 +381,27 @@ pub struct App {
   ecpu_freq: FreqStore,
   pcpu_freq: FreqStore,
   igpu_freq: FreqStore,
+
+  log_path: Option<PathBuf>,
+  log_counter: u64,
 }
 
 impl App {
   pub fn new() -> WithError<Self> {
     let soc = SocInfo::new()?;
     let cfg = Config::load();
-    Ok(Self { cfg, soc, ..Default::default() })
+
+    // Inizializza il file di log accanto all'eseguibile
+    let log_path = log_file_path(&soc);
+    {
+      let mut file = OpenOptions::new()
+        .create(true).write(true).truncate(true)
+        .open(&log_path)?;
+      file.write_all(log_session_header(&soc, &log_path).as_bytes())?;
+      file.flush()?;
+    }
+
+    Ok(Self { cfg, soc, log_path: Some(log_path), ..Default::default() })
   }
 
   fn update_metrics(&mut self, data: Metrics) {
@@ -263,7 +417,17 @@ impl App {
     self.cpu_temp.push(data.temp.cpu_temp_avg);
     self.gpu_temp.push(data.temp.gpu_temp_avg);
 
-    self.mem.push(data.memory);
+    self.mem.push(data.memory.clone());
+
+    // Scrivi campione sul file di log
+    self.log_counter += 1;
+    if let Some(ref path) = self.log_path {
+      let entry = log_build_entry(&data, &self.soc, self.log_counter);
+      if let Ok(mut file) = OpenOptions::new().append(true).open(path) {
+        let _ = file.write_all(entry.as_bytes());
+        let _ = file.flush();
+      }
+    }
   }
 
   fn title_block<'a>(&self, label_l: &str, label_r: &str) -> Block<'a> {
