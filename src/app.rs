@@ -192,6 +192,13 @@ struct PeakStats {
   gpu_freq: u32,
   cpu_usage: f32,
   ram_usage: u64,
+  // accumulatori per le medie
+  sum_cpu_power: f64,
+  sum_gpu_power: f64,
+  sum_ane_power: f64,
+  sum_all_power: f64,
+  sum_sys_power: f64,
+  count: u64,
 }
 
 impl PeakStats {
@@ -206,14 +213,39 @@ impl PeakStats {
     if m.ecpu_usage.0 > self.ecpu_freq { self.ecpu_freq = m.ecpu_usage.0 }
     if m.pcpu_usage.0 > self.pcpu_freq { self.pcpu_freq = m.pcpu_usage.0 }
     if m.gpu_usage.0  > self.gpu_freq  { self.gpu_freq  = m.gpu_usage.0 }
-    let cpu_pct = m.cpu_usage_pct;
-    if cpu_pct > self.cpu_usage { self.cpu_usage = cpu_pct }
+    if m.cpu_usage_pct > self.cpu_usage { self.cpu_usage = m.cpu_usage_pct }
     if m.memory.ram_usage > self.ram_usage { self.ram_usage = m.memory.ram_usage }
+    // medie
+    self.sum_cpu_power += m.cpu_power as f64;
+    self.sum_gpu_power += m.gpu_power as f64;
+    self.sum_ane_power += m.ane_power as f64;
+    self.sum_all_power += m.all_power as f64;
+    self.sum_sys_power += m.sys_power as f64;
+    self.count += 1;
   }
+
+  fn avg_cpu_power(&self) -> f32 { if self.count > 0 { (self.sum_cpu_power / self.count as f64) as f32 } else { 0.0 } }
+  fn avg_gpu_power(&self) -> f32 { if self.count > 0 { (self.sum_gpu_power / self.count as f64) as f32 } else { 0.0 } }
+  fn avg_ane_power(&self) -> f32 { if self.count > 0 { (self.sum_ane_power / self.count as f64) as f32 } else { 0.0 } }
+  fn avg_all_power(&self) -> f32 { if self.count > 0 { (self.sum_all_power / self.count as f64) as f32 } else { 0.0 } }
+  fn avg_sys_power(&self) -> f32 { if self.count > 0 { (self.sum_sys_power / self.count as f64) as f32 } else { 0.0 } }
 }
 
-fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakStats) -> String {
-  let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakStats, start: &chrono::DateTime<chrono::Local>) -> String {
+  let now = chrono::Local::now();
+  let ts = now.format("%Y-%m-%d %H:%M:%S").to_string();
+  let elapsed = now.signed_duration_since(*start);
+  let h = elapsed.num_hours();
+  let m = elapsed.num_minutes() % 60;
+  let s = elapsed.num_seconds() % 60;
+  let duration_str = if h > 0 {
+    format!("{}h {:02}m {:02}s", h, m, s)
+  } else if m > 0 {
+    format!("{}m {:02}s", m, s)
+  } else {
+    format!("{}s", s)
+  };
+
   let mut L: Vec<String> = Vec::new();
   L.push(String::new());
   L.push(String::new());
@@ -222,6 +254,7 @@ fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakS
   L.push("╚══════════════════════════════════════════════════════════════╝".into());
   L.push(String::new());
   L.push(format!("  Data/ora fine     : {}", ts));
+  L.push(format!("  Durata sessione   : {}", duration_str));
   L.push(format!("  File di log       : {}", path.display()));
   L.push(format!("  Intervallo        : segue UI (ms variabili)"));
   L.push(format!("  Campioni totali   : {}", samples));
@@ -266,6 +299,15 @@ fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakS
   L.push(format!("  GPU temp max      : {}", log_fmt_temp(peaks.gpu_temp)));
   L.push(String::new());
   L.push(format!("  RAM max           : {}", log_fmt_gb(peaks.ram_usage)));
+  L.push(String::new());
+  L.push("  ── MEDIE DURANTE LA SESSIONE ─────────────────────────────────".into());
+  L.push(format!("  CPU power avg     : {}", log_fmt_watts(peaks.avg_cpu_power())));
+  L.push(format!("  GPU power avg     : {}", log_fmt_watts(peaks.avg_gpu_power())));
+  L.push(format!("  ANE power avg     : {}", log_fmt_watts(peaks.avg_ane_power())));
+  L.push(format!("  SoC totale avg    : {}", log_fmt_watts(peaks.avg_all_power())));
+  if peaks.sys_power > 0.0 {
+    L.push(format!("  Sistema avg       : {}", log_fmt_watts(peaks.avg_sys_power())));
+  }
   L.push(String::new());
   L.push("═══════════════════════════════════════════════════════════════".into());
   L.push(String::new());
@@ -504,6 +546,7 @@ pub struct App {
   log_path: Option<PathBuf>,
   log_counter: u64,
   peaks: PeakStats,
+  start_time: Option<chrono::DateTime<chrono::Local>>,
 }
 
 impl App {
@@ -521,7 +564,7 @@ impl App {
       file.flush()?;
     }
 
-    Ok(Self { cfg, soc, log_path: Some(log_path), ..Default::default() })
+    Ok(Self { cfg, soc, log_path: Some(log_path), start_time: Some(chrono::Local::now()), ..Default::default() })
   }
 
   fn update_metrics(&mut self, data: Metrics) {
@@ -738,7 +781,8 @@ impl App {
       match rx.recv()? {
         Event::Quit => {
           if let Some(ref path) = self.log_path {
-            let footer = log_session_footer(&self.soc, path, self.log_counter, &self.peaks);
+            let start = self.start_time.as_ref().unwrap_or(&chrono::Local::now());
+            let footer = log_session_footer(&self.soc, path, self.log_counter, &self.peaks, start);
             if let Ok(mut file) = OpenOptions::new().append(true).open(path) {
               let _ = file.write_all(footer.as_bytes());
               let _ = file.flush();
