@@ -165,11 +165,11 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
 
   // Memoria
   L.push("  MEMORIA".into());
-  L.push(format!("    {:<16} {:5.1}%  {}   {} / {}",
+  L.push(format!("    {:<16} {:5.1}%  {}     {} / {}",
     "RAM", ram_pct, log_bar(ram_pct, 100.0, B),
     log_fmt_gb(mem.ram_usage), log_fmt_gb(mem.ram_total)));
   if mem.swap_total > 0 {
-    L.push(format!("    {:<16} {:5.1}%  {}   {} / {}",
+    L.push(format!("    {:<16} {:5.1}%  {}     {} / {}",
       "SWAP", swap_pct, log_bar(swap_pct, 100.0, B),
       log_fmt_gb(mem.swap_usage), log_fmt_gb(mem.swap_total)));
   }
