@@ -148,19 +148,19 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
 
   // Consumi
   L.push("  CONSUMI".into());
-  L.push(format!("    CPU              : {}", log_fmt_watts(metrics.cpu_power)));
-  L.push(format!("    GPU              : {}", log_fmt_watts(metrics.gpu_power)));
-  L.push(format!("    ANE              : {}", log_fmt_watts(metrics.ane_power)));
-  L.push(format!("    SoC totale       : {}", log_fmt_watts(metrics.all_power)));
+  L.push(format!("    CPU            {}", log_fmt_watts(metrics.cpu_power)));
+  L.push(format!("    GPU            {}", log_fmt_watts(metrics.gpu_power)));
+  L.push(format!("    ANE            {}", log_fmt_watts(metrics.ane_power)));
+  L.push(format!("    SoC totale     {}", log_fmt_watts(metrics.all_power)));
   if metrics.sys_power > 0.0 {
-    L.push(format!("    Sistema (PSTR)   : {}", log_fmt_watts(metrics.sys_power)));
+    L.push(format!("    Sistema (PSTR) {}", log_fmt_watts(metrics.sys_power)));
   }
   L.push(String::new());
 
   // Temperature
   L.push("  TEMPERATURE".into());
-  L.push(format!("    CPU avg          : {}", log_fmt_temp(metrics.temp.cpu_temp_avg)));
-  L.push(format!("    GPU avg          : {}", log_fmt_temp(metrics.temp.gpu_temp_avg)));
+  L.push(format!("    CPU avg        {}", log_fmt_temp(metrics.temp.cpu_temp_avg)));
+  L.push(format!("    GPU avg        {}", log_fmt_temp(metrics.temp.gpu_temp_avg)));
   L.push(String::new());
 
   // Memoria
@@ -281,32 +281,32 @@ fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakS
   L.push(format!("  GPU     : {} MHz",
     soc.gpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(String::new());
-  L.push("  ── PICCHI RILEVATI DURANTE LA SESSIONE ───────────────────────".into());
-  L.push(format!("  CPU utilizzo max  : {:5.1}%", peaks.cpu_usage * 100.0));
+  L.push("  ── PICCHI DURANTE LA SESSIONE ────────────────────────────────".into());
+  L.push(format!("  CPU utilizzo max  :    {:5.1}%", peaks.cpu_usage * 100.0));
   L.push(format!("  {}-Core freq max   : {}", soc.ecpu_label, log_fmt_freq(peaks.ecpu_freq)));
   L.push(format!("  {}-Core freq max   : {}", soc.pcpu_label, log_fmt_freq(peaks.pcpu_freq)));
   L.push(format!("  GPU freq max      : {}", log_fmt_freq(peaks.gpu_freq)));
   L.push(String::new());
-  L.push(format!("  CPU power max     : {}", log_fmt_watts(peaks.cpu_power)));
-  L.push(format!("  GPU power max     : {}", log_fmt_watts(peaks.gpu_power)));
-  L.push(format!("  ANE power max     : {}", log_fmt_watts(peaks.ane_power)));
-  L.push(format!("  SoC totale max    : {}", log_fmt_watts(peaks.all_power)));
+  L.push(format!("  CPU power max     :  {}", log_fmt_watts(peaks.cpu_power)));
+  L.push(format!("  GPU power max     :  {}", log_fmt_watts(peaks.gpu_power)));
+  L.push(format!("  ANE power max     :  {}", log_fmt_watts(peaks.ane_power)));
+  L.push(format!("  SoC totale max    :  {}", log_fmt_watts(peaks.all_power)));
   if peaks.sys_power > 0.0 {
-    L.push(format!("  Sistema max       : {}", log_fmt_watts(peaks.sys_power)));
+    L.push(format!("  Sistema max       :  {}", log_fmt_watts(peaks.sys_power)));
   }
   L.push(String::new());
-  L.push(format!("  CPU temp max      : {}", log_fmt_temp(peaks.cpu_temp)));
-  L.push(format!("  GPU temp max      : {}", log_fmt_temp(peaks.gpu_temp)));
+  L.push(format!("  CPU temp max      :   {}", log_fmt_temp(peaks.cpu_temp)));
+  L.push(format!("  GPU temp max      :   {}", log_fmt_temp(peaks.gpu_temp)));
   L.push(String::new());
-  L.push(format!("  RAM max           : {}", log_fmt_gb(peaks.ram_usage)));
+  L.push(format!("  RAM max           :  {}", log_fmt_gb(peaks.ram_usage)));
   L.push(String::new());
   L.push("  ── MEDIE DURANTE LA SESSIONE ─────────────────────────────────".into());
-  L.push(format!("  CPU power avg     : {}", log_fmt_watts(peaks.avg_cpu_power())));
-  L.push(format!("  GPU power avg     : {}", log_fmt_watts(peaks.avg_gpu_power())));
-  L.push(format!("  ANE power avg     : {}", log_fmt_watts(peaks.avg_ane_power())));
-  L.push(format!("  SoC totale avg    : {}", log_fmt_watts(peaks.avg_all_power())));
+  L.push(format!("  CPU power avg     :  {}", log_fmt_watts(peaks.avg_cpu_power())));
+  L.push(format!("  GPU power avg     :  {}", log_fmt_watts(peaks.avg_gpu_power())));
+  L.push(format!("  ANE power avg     :  {}", log_fmt_watts(peaks.avg_ane_power())));
+  L.push(format!("  SoC totale avg    :  {}", log_fmt_watts(peaks.avg_all_power())));
   if peaks.sys_power > 0.0 {
-    L.push(format!("  Sistema avg       : {}", log_fmt_watts(peaks.avg_sys_power())));
+    L.push(format!("  Sistema avg       :  {}", log_fmt_watts(peaks.avg_sys_power())));
   }
   L.push(String::new());
   L.push("═══════════════════════════════════════════════════════════════".into());
