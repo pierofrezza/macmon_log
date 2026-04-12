@@ -128,18 +128,18 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
   L.push(format!("    {:<16} {:5.1}%  {}",
     "CPU combinato", cpu_pct, log_bar(cpu_pct, 100.0, B)));
   L.push(String::new());
-  L.push(format!("    {:<16} {:5.1}%  {}   {} / {}",
+  L.push(format!("    {:<16} {:5.1}%  {}    {} /{}",
     ecpu_lbl, ecpu_pct,
     log_bar(metrics.ecpu_usage.0 as f64, max_ecpu, B),
     log_fmt_freq(metrics.ecpu_usage.0),
     log_fmt_freq(*soc.ecpu_freqs.last().unwrap_or(&0))));
-  L.push(format!("    {:<16} {:5.1}%  {}   {} / {}",
+  L.push(format!("    {:<16} {:5.1}%  {}    {} /{}",
     pcpu_lbl, pcpu_pct,
     log_bar(metrics.pcpu_usage.0 as f64, max_pcpu, B),
     log_fmt_freq(metrics.pcpu_usage.0),
     log_fmt_freq(*soc.pcpu_freqs.last().unwrap_or(&0))));
   L.push(String::new());
-  L.push(format!("    {:<16} {:5.1}%  {}   {} / {}",
+  L.push(format!("    {:<16} {:5.1}%  {}    {} /{}",
     "GPU", gpu_pct,
     log_bar(metrics.gpu_usage.0 as f64, max_gpu, B),
     log_fmt_freq(metrics.gpu_usage.0),
