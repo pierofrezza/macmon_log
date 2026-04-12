@@ -781,7 +781,8 @@ impl App {
       match rx.recv()? {
         Event::Quit => {
           if let Some(ref path) = self.log_path {
-            let start = self.start_time.as_ref().unwrap_or(&chrono::Local::now());
+            let fallback = chrono::Local::now();
+            let start = self.start_time.as_ref().unwrap_or(&fallback);
             let footer = log_session_footer(&self.soc, path, self.log_counter, &self.peaks, start);
             if let Ok(mut file) = OpenOptions::new().append(true).open(path) {
               let _ = file.write_all(footer.as_bytes());
