@@ -27,11 +27,11 @@ fn log_bar(value: f64, max: f64, width: usize) -> String {
 }
 
 fn log_fmt_freq(mhz: u32) -> String {
-  format!("{:5} MHz", mhz)
+  if mhz == 0 { "  N/A MHz".to_string() } else { format!("{:5} MHz", mhz) }
 }
 
 fn log_fmt_watts(w: f32) -> String {
-  format!("{:6.2} W", w)
+  if w == 0.0 { "   N/A".to_string() } else { format!("{:6.2} W", w) }
 }
 
 fn log_fmt_temp(t: f32) -> String {
@@ -81,7 +81,7 @@ fn log_session_header(soc: &SocInfo, path: &PathBuf) -> String {
   L.push(format!("  {}-Core  : {} MHz",
     soc.pcpu_label,
     soc.pcpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
-  L.push(format!("  GPU     : {} MHz",
+  L.push(format!("  GPU      : {} MHz",
     soc.gpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(String::new());
   L.push("═══════════════════════════════════════════════════════════════".into());
@@ -174,103 +174,7 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
   L.join("\n")
 }
 
-// MARK: Peak stats tracker
-
-#[derive(Debug, Default)]
-struct PeakStats {
-  cpu_power: f32,
-  gpu_power: f32,
-  ane_power: f32,
-  all_power: f32,
-  sys_power: f32,
-  cpu_temp: f32,
-  gpu_temp: f32,
-  ecpu_freq: u32,
-  pcpu_freq: u32,
-  gpu_freq: u32,
-  cpu_usage: f32,
-  ram_usage: u64,
-}
-
-impl PeakStats {
-  fn update(&mut self, m: &Metrics) {
-    if m.cpu_power  > self.cpu_power  { self.cpu_power  = m.cpu_power }
-    if m.gpu_power  > self.gpu_power  { self.gpu_power  = m.gpu_power }
-    if m.ane_power  > self.ane_power  { self.ane_power  = m.ane_power }
-    if m.all_power  > self.all_power  { self.all_power  = m.all_power }
-    if m.sys_power  > self.sys_power  { self.sys_power  = m.sys_power }
-    if m.temp.cpu_temp_avg > self.cpu_temp { self.cpu_temp = m.temp.cpu_temp_avg }
-    if m.temp.gpu_temp_avg > self.gpu_temp { self.gpu_temp = m.temp.gpu_temp_avg }
-    if m.ecpu_usage.0 > self.ecpu_freq { self.ecpu_freq = m.ecpu_usage.0 }
-    if m.pcpu_usage.0 > self.pcpu_freq { self.pcpu_freq = m.pcpu_usage.0 }
-    if m.gpu_usage.0  > self.gpu_freq  { self.gpu_freq  = m.gpu_usage.0 }
-    let cpu_pct = m.cpu_usage_pct;
-    if cpu_pct > self.cpu_usage { self.cpu_usage = cpu_pct }
-    if m.memory.ram_usage > self.ram_usage { self.ram_usage = m.memory.ram_usage }
-  }
-}
-
-fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakStats) -> String {
-  let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-  let mut L: Vec<String> = Vec::new();
-  L.push(String::new());
-  L.push(String::new());
-  L.push("╔══════════════════════════════════════════════════════════════╗".into());
-  L.push("║               FINE SESSIONE — macmon log                    ║".into());
-  L.push("╚══════════════════════════════════════════════════════════════╝".into());
-  L.push(String::new());
-  L.push(format!("  Data/ora fine     : {}", ts));
-  L.push(format!("  File di log       : {}", path.display()));
-  L.push(format!("  Intervallo        : segue UI (ms variabili)"));
-  L.push(format!("  Campioni totali   : {}", samples));
-  L.push(String::new());
-  L.push("  ── INFORMAZIONI MACCHINA ─────────────────────────────────────".into());
-  L.push(format!("  Chip              : {}", soc.chip_name));
-  L.push(format!("  Model ID          : {}", soc.mac_model));
-  L.push(format!("  Memoria           : {} GB", soc.memory_gb));
-  L.push(format!(
-    "  Core CPU          : {} {}-core + {} {}-core  (tot. {})",
-    soc.ecpu_cores, soc.ecpu_label,
-    soc.pcpu_cores, soc.pcpu_label,
-    soc.ecpu_cores as u16 + soc.pcpu_cores as u16,
-  ));
-  L.push(format!("  Core GPU          : {}", soc.gpu_cores));
-  L.push(String::new());
-  L.push("  ── RANGE FREQUENZE DISPONIBILI ───────────────────────────────".into());
-  L.push(format!("  {}-Core  : {} MHz",
-    soc.ecpu_label,
-    soc.ecpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
-  L.push(format!("  {}-Core  : {} MHz",
-    soc.pcpu_label,
-    soc.pcpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
-  L.push(format!("  GPU     : {} MHz",
-    soc.gpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
-  L.push(String::new());
-  L.push("  ── PICCHI RILEVATI DURANTE LA SESSIONE ───────────────────────".into());
-  L.push(format!("  CPU utilizzo max  : {:5.1}%", peaks.cpu_usage * 100.0));
-  L.push(format!("  {}-Core freq max   : {}", soc.ecpu_label, log_fmt_freq(peaks.ecpu_freq)));
-  L.push(format!("  {}-Core freq max   : {}", soc.pcpu_label, log_fmt_freq(peaks.pcpu_freq)));
-  L.push(format!("  GPU freq max      : {}", log_fmt_freq(peaks.gpu_freq)));
-  L.push(String::new());
-  L.push(format!("  CPU power max     : {}", log_fmt_watts(peaks.cpu_power)));
-  L.push(format!("  GPU power max     : {}", log_fmt_watts(peaks.gpu_power)));
-  L.push(format!("  ANE power max     : {}", log_fmt_watts(peaks.ane_power)));
-  L.push(format!("  SoC totale max    : {}", log_fmt_watts(peaks.all_power)));
-  if peaks.sys_power > 0.0 {
-    L.push(format!("  Sistema max       : {}", log_fmt_watts(peaks.sys_power)));
-  }
-  L.push(String::new());
-  L.push(format!("  CPU temp max      : {}", log_fmt_temp(peaks.cpu_temp)));
-  L.push(format!("  GPU temp max      : {}", log_fmt_temp(peaks.gpu_temp)));
-  L.push(String::new());
-  L.push(format!("  RAM max           : {}", log_fmt_gb(peaks.ram_usage)));
-  L.push(String::new());
-  L.push("═══════════════════════════════════════════════════════════════".into());
-  L.push(String::new());
-  L.join("\n")
-}
-
-
+type WithError<T> = Result<T, Box<dyn std::error::Error>>;
 
 const GB: u64 = 1024 * 1024 * 1024;
 const MAX_SPARKLINE: usize = 128;
@@ -501,7 +405,6 @@ pub struct App {
 
   log_path: Option<PathBuf>,
   log_counter: u64,
-  peaks: PeakStats,
 }
 
 impl App {
@@ -523,8 +426,7 @@ impl App {
   }
 
   fn update_metrics(&mut self, data: Metrics) {
-    // Aggiorna picchi e scrivi log (prima delle push che consumano data)
-    self.peaks.update(&data);
+    // Scrivi campione sul file di log (prima delle push che consumano data)
     self.log_counter += 1;
     if let Some(ref path) = self.log_path {
       let entry = log_build_entry(&data, &self.soc, self.log_counter);
@@ -734,16 +636,7 @@ impl App {
       term.draw(|f| self.render(f)).unwrap();
 
       match rx.recv()? {
-        Event::Quit => {
-          if let Some(ref path) = self.log_path {
-            let footer = log_session_footer(&self.soc, path, self.log_counter, &self.peaks);
-            if let Ok(mut file) = OpenOptions::new().append(true).open(path) {
-              let _ = file.write_all(footer.as_bytes());
-              let _ = file.flush();
-            }
-          }
-          break;
-        }
+        Event::Quit => break,
         Event::Update(data) => self.update_metrics(data),
         Event::ChangeColor => self.cfg.next_color(),
         Event::ChangeView => self.cfg.next_view_type(),
