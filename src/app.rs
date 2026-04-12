@@ -159,8 +159,8 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
 
   // Temperature
   L.push("  TEMPERATURE".into());
-  L.push(format!("    CPU avg        {}", log_fmt_temp(metrics.temp.cpu_temp_avg)));
-  L.push(format!("    GPU avg        {}", log_fmt_temp(metrics.temp.gpu_temp_avg)));
+  L.push(format!("    CPU avg         {}", log_fmt_temp(metrics.temp.cpu_temp_avg)));
+  L.push(format!("    GPU avg         {}", log_fmt_temp(metrics.temp.gpu_temp_avg)));
   L.push(String::new());
 
   // Memoria
@@ -250,7 +250,7 @@ fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakS
   L.push(String::new());
   L.push(String::new());
   L.push("╔══════════════════════════════════════════════════════════════╗".into());
-  L.push("║               FINE SESSIONE — macmon log                    ║".into());
+  L.push("║               FINE SESSIONE — macmon log                     ║".into());
   L.push("╚══════════════════════════════════════════════════════════════╝".into());
   L.push(String::new());
   L.push(format!("  Data/ora fine     : {}", ts));
