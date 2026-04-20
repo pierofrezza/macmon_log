@@ -547,6 +547,7 @@ pub struct App {
   igpu_freq: FreqStore,
 
   log_path: Option<PathBuf>,
+  csv_path: Option<PathBuf>,
   log_counter: u64,
   peaks: PeakStats,
   start_time: Option<chrono::DateTime<chrono::Local>>,
@@ -567,7 +568,17 @@ impl App {
       file.flush()?;
     }
 
-    Ok(Self { cfg, soc, log_path: Some(log_path), start_time: Some(chrono::Local::now()), ..Default::default() })
+    // Crea file CSV con intestazione
+    let csv_path = log_path.with_extension("csv");
+    {
+      let mut file = OpenOptions::new()
+        .create(true).write(true).truncate(true)
+        .open(&csv_path)?;
+      file.write_all("timestamp,cpu_pct,ecpu_pct,ecpu_mhz,pcpu_pct,pcpu_mhz,gpu_pct,gpu_mhz,cpu_w,gpu_w,ane_w,soc_w,sys_w,cpu_temp,gpu_temp,ram_pct,ram_gb\n".as_bytes())?;
+      file.flush()?;
+    }
+
+    Ok(Self { cfg, soc, log_path: Some(log_path), csv_path: Some(csv_path), start_time: Some(chrono::Local::now()), ..Default::default() })
   }
 
   fn update_metrics(&mut self, data: Metrics) {
@@ -595,6 +606,42 @@ impl App {
     self.gpu_temp.push(data.temp.gpu_temp_avg);
 
     self.mem.push(data.memory);
+
+    // Scrivi riga CSV
+    if let Some(ref path) = self.csv_path {
+      let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+      let ram_gb = self.mem.ram_usage as f64 / LOG_GB as f64;
+      let ram_pct = if self.mem.ram_total > 0 {
+        self.mem.ram_usage as f64 / self.mem.ram_total as f64 * 100.0
+      } else { 0.0 };
+      let ecpu_mhz = if self.ecpu_freq.top_value > 10000 { self.ecpu_freq.top_value / 1000 } else { self.ecpu_freq.top_value };
+      let pcpu_mhz = if self.pcpu_freq.top_value > 10000 { self.pcpu_freq.top_value / 1000 } else { self.pcpu_freq.top_value };
+      let gpu_mhz  = if self.igpu_freq.top_value > 10000 { self.igpu_freq.top_value / 1000 } else { self.igpu_freq.top_value };
+      let row = format!(
+        "{},{:.1},{:.1},{},{:.1},{},{:.1},{},{:.2},{:.2},{:.2},{:.2},{:.2},{:.1},{:.1},{:.1},{:.2}\n",
+        ts,
+        self.all_power.top_value * 0.0 + (self.ecpu_freq.usage + self.pcpu_freq.usage) / 2.0 * 100.0,
+        self.ecpu_freq.usage * 100.0,
+        ecpu_mhz,
+        self.pcpu_freq.usage * 100.0,
+        pcpu_mhz,
+        self.igpu_freq.usage * 100.0,
+        gpu_mhz,
+        self.cpu_power.top_value,
+        self.gpu_power.top_value,
+        self.ane_power.top_value,
+        self.all_power.top_value,
+        self.sys_power.top_value,
+        self.cpu_temp.last(),
+        self.gpu_temp.last(),
+        ram_pct,
+        ram_gb,
+      );
+      if let Ok(mut file) = OpenOptions::new().append(true).open(path) {
+        let _ = file.write_all(row.as_bytes());
+        let _ = file.flush();
+      }
+    }
   }
 
   fn title_block<'a>(&self, label_l: &str, label_r: &str) -> Block<'a> {
