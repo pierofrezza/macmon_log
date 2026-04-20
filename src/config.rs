@@ -20,7 +20,7 @@ pub struct Config {
   #[serde_inline_default(COLORS_OPTIONS[0])]
   pub color: Color,
 
-  #[serde_inline_default(1000)]
+  #[serde_inline_default(250)]
   pub interval: u32,
 }
 
