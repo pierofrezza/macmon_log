@@ -234,7 +234,7 @@ impl PeakStats {
   fn avg_sys_power(&self) -> f32 { if self.count > 0 { (self.sum_sys_power / self.count as f64) as f32 } else { 0.0 } }
 }
 
-fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakStats, start: &chrono::DateTime<chrono::Local>) -> String {
+fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakStats, start: &chrono::DateTime<chrono::Local>, interval: u32) -> String {
   let now = chrono::Local::now();
   let ts = now.format("%Y-%m-%d %H:%M:%S").to_string();
   let elapsed = now.signed_duration_since(*start);
@@ -259,7 +259,7 @@ fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakS
   L.push(format!("  Data/ora fine     : {}", ts));
   L.push(format!("  Durata sessione   : {}", duration_str));
   L.push(format!("  File di log       : {}", path.display()));
-  L.push(format!("  Intervallo        : segue UI (ms variabili)"));
+  L.push(format!("  Intervallo        : {} ms", interval));
   L.push(format!("  Campioni totali   : {}", samples));
   L.push(String::new());
   L.push("  ── INFORMAZIONI MACCHINA ─────────────────────────────────────".into());
@@ -770,6 +770,17 @@ impl App {
   pub fn run_loop(&mut self, interval: Option<u32>) -> WithError<()> {
     // use from arg if provided, otherwise use config restored value
     self.cfg.interval = interval.unwrap_or(self.cfg.interval).clamp(100, 10_000);
+
+    if let Some(ref path) = self.log_path {
+      if let Ok(content) = std::fs::read_to_string(path) {
+        let updated = content.replace(
+          "Intervallo       : segue UI (ms variabili)",
+          &format!("Intervallo       : {} ms", self.cfg.interval)
+        );
+        let _ = std::fs::write(path, updated);
+      }
+    }
+
     let msec = Arc::new(RwLock::new(self.cfg.interval));
 
     let (tx, rx) = mpsc::channel::<Event>();
@@ -786,7 +797,7 @@ impl App {
           if let Some(ref path) = self.log_path {
             let fallback = chrono::Local::now();
             let start = self.start_time.as_ref().unwrap_or(&fallback);
-            let footer = log_session_footer(&self.soc, path, self.log_counter, &self.peaks, start);
+            let footer = log_session_footer(&self.soc, path, self.log_counter, &self.peaks, start, self.cfg.interval);
             if let Ok(mut file) = OpenOptions::new().append(true).open(path) {
               let _ = file.write_all(footer.as_bytes());
               let _ = file.flush();
