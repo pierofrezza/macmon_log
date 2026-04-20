@@ -29,6 +29,7 @@ fn log_bar(value: f64, max: f64, width: usize) -> String {
 }
 
 fn log_fmt_freq(mhz: u32) -> String {
+  let mhz = if mhz > 10000 { mhz / 1000 } else { mhz };
   format!("{:5} MHz", mhz)
 }
 
@@ -79,12 +80,12 @@ fn log_session_header(soc: &SocInfo, path: &PathBuf) -> String {
   L.push("  ── RANGE FREQUENZE DISPONIBILI ───────────────────────────────".into());
   L.push(format!("  {}-Core  : {} MHz",
     soc.ecpu_label,
-    soc.ecpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
+    soc.ecpu_freqs.iter().map(|f| if *f > 10000 { f / 1000 } else { *f }).map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(format!("  {}-Core  : {} MHz",
     soc.pcpu_label,
-    soc.pcpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
+    soc.pcpu_freqs.iter().map(|f| if *f > 10000 { f / 1000 } else { *f }).map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(format!("  GPU     : {} MHz",
-    soc.gpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
+    soc.gpu_freqs.iter().map(|f| if *f > 10000 { f / 1000 } else { *f }).map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(String::new());
   L.push("═══════════════════════════════════════════════════════════════".into());
   L.push(String::new());
@@ -276,12 +277,12 @@ fn log_session_footer(soc: &SocInfo, path: &PathBuf, samples: u64, peaks: &PeakS
   L.push("  ── RANGE FREQUENZE DISPONIBILI ───────────────────────────────".into());
   L.push(format!("  {}-Core  : {} MHz",
     soc.ecpu_label,
-    soc.ecpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
+    soc.ecpu_freqs.iter().map(|f| if *f > 10000 { f / 1000 } else { *f }).map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(format!("  {}-Core  : {} MHz",
     soc.pcpu_label,
-    soc.pcpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
+    soc.pcpu_freqs.iter().map(|f| if *f > 10000 { f / 1000 } else { *f }).map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(format!("  GPU     : {} MHz",
-    soc.gpu_freqs.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
+    soc.gpu_freqs.iter().map(|f| if *f > 10000 { f / 1000 } else { *f }).map(|f| f.to_string()).collect::<Vec<_>>().join(" · ")));
   L.push(String::new());
   L.push("  ── PICCHI DURANTE LA SESSIONE ────────────────────────────────".into());
   L.push(format!("  CPU utilizzo max  :    {:5.1}%", peaks.cpu_usage * 100.0));
