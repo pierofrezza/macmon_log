@@ -106,7 +106,7 @@ fn log_build_entry(metrics: &Metrics, soc: &SocInfo, index: u64) -> String {
   let max_gpu  = *soc.gpu_freqs.last().unwrap_or(&1)  as f64;
 
   // Tutte le barre hanno la stessa larghezza (20) e i valori sono padding fisso
-  // Layout colonne: "    X-Core  PPP.P%  [████████████████████]   F.FF GHz / F.FF GHz"
+  // Layout colonne: "    X-Core  PPP.P%  [████████████████████]   FFFFF MHz / FFFFF MHz"
   let B = 20; // larghezza barra unica per tutto il log
 
   let mut L: Vec<String> = Vec::new();
@@ -551,6 +551,7 @@ pub struct App {
   log_counter: u64,
   peaks: PeakStats,
   start_time: Option<chrono::DateTime<chrono::Local>>,
+  last_cpu_pct: f32,
 }
 
 impl App {
@@ -584,6 +585,7 @@ impl App {
   fn update_metrics(&mut self, data: Metrics) {
     // Aggiorna picchi e scrivi log (prima delle push che consumano data)
     self.peaks.update(&data);
+    self.last_cpu_pct = data.cpu_usage_pct;
     self.log_counter += 1;
     if let Some(ref path) = self.log_path {
       let entry = log_build_entry(&data, &self.soc, self.log_counter);
@@ -620,7 +622,7 @@ impl App {
       let row = format!(
         "{},{:.1},{:.1},{},{:.1},{},{:.1},{},{:.2},{:.2},{:.2},{:.2},{:.2},{:.1},{:.1},{:.1},{:.2}\n",
         ts,
-        self.all_power.top_value * 0.0 + (self.ecpu_freq.usage + self.pcpu_freq.usage) / 2.0 * 100.0,
+        self.last_cpu_pct * 100.0,
         self.ecpu_freq.usage * 100.0,
         ecpu_mhz,
         self.pcpu_freq.usage * 100.0,
